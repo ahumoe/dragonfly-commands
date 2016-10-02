@@ -1,6 +1,6 @@
 # dragonfly-commands
 
-This repository contains commands and macros for the following programs and languages:
+This repository contains speech commands and macros for the following programs and languages:
 - Visual Studio: C#
 - WebStorm: HTML, CSS, JavaScript, React
 - Sublime Text
@@ -9,9 +9,9 @@ This repository contains commands and macros for the following programs and lang
 - Windows Explorer
 - Outlook 
 
-Due to some problems reloading multiple files, all the commands are defined in the file `_commands.py`.    
+It requires the speech recognition software Dragon NaturallySpeaking. Due to some problems reloading multiple files, all the commands are defined in the file `_commands.py`. The command modules are work in progress, so changes will occur. 
 
-This project is work in progress. Based on repository by wolfmanstout [dragonfly-commands repository](https://github.com/wolfmanstout/dragonfly-commands).
+Based on code written by wolfmanstout [dragonfly-commands](https://github.com/wolfmanstout/dragonfly-commands).
 
 ## Setup
 - Dragonfly installation
@@ -21,6 +21,13 @@ This project is work in progress. Based on repository by wolfmanstout [dragonfly
 
 - Find your python directory. Go to file "C:\Python27\Lib\site-packages\dragonfly-0.6.6b1-py2.7.egg\dragonfly\__init__.py". In line 37, add `RuleWrap` to the list of imports.
 
+- Clone this repository.
+- Open "Configure NatLink via GUI". Click "Enable" under UserDirectory, and find the folder with this repository.
+- Open Dragon NaturallySpeaking, a box with the title "Messages from NatLink" should pop up.
+- In Dragon, under "Now listening for...", choose "Commands".
+
+Note that NatLink must be opened before the Dragon software. 
+
 My setup:
 - Windows 8.1 x64
 - ActivePython-2.7.10.12-win32-x86
@@ -28,6 +35,3 @@ My setup:
 - natlink-4.1papa
 - Dragonfly
 - Dragon Professional 14
-
-
-
