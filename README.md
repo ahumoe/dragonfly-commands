@@ -1,9 +1,10 @@
 # dragonfly-commands
 
 This repository contains speech commands and macros for the following programs and languages:
-- Visual Studio: C#
+- Visual Studio: C# [video](https://www.youtube.com/watch?v=kTeoR99xH6M&feature=youtu.be)
 - WebStorm: HTML, CSS, JavaScript, React
 - Sublime Text
+- SourceTree
 - Slack
 - Chrome
 - Windows Explorer
@@ -18,9 +19,7 @@ Based on code written by wolfmanstout [dragonfly-commands](https://github.com/wo
  - Install the prerequisites for dragonfly: http://dragonfly.readthedocs.io/en/latest/installation.html
  - Download  dragonfly from: https://github.com/t4ngo/dragonfly
  - Navigate to the downloaded dragonfly directory in Command Prompt and run `python setup.py install`.
-
 - Find your python directory. Go to file "C:\Python27\Lib\site-packages\dragonfly-0.6.6b1-py2.7.egg\dragonfly\__init__.py". In line 37, add `RuleWrap` to the list of imports.
-
 - Clone this repository.
 - Open "Configure NatLink via GUI". Click "Enable" under UserDirectory, and find the folder with this repository.
 - Open Dragon NaturallySpeaking, a box with the title "Messages from NatLink" should pop up.
