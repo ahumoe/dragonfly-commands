@@ -1,7 +1,7 @@
 # dragonfly-commands
 
 This repository contains speech commands and macros for the following programs and languages:
-- Visual Studio: C# [video](https://www.youtube.com/watch?v=kTeoR99xH6M&feature=youtu.be)
+- Visual Studio: C# [video](https://youtu.be/YnFQ0gQDnWM)
 - WebStorm: HTML, CSS, JavaScript, React
 - Sublime Text
 - SourceTree
