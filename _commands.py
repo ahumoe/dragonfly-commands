@@ -73,19 +73,19 @@ from _problematic_chars import (
 
 from _format_text_actions import (
     TextAction,
+    PhraseAction,
     CamelAction,
     CapsAction,
     DashAction,
+    ScoreAction,
+    UpperAction,
+    WordAction,
     UpperScoreAction,
     TwoCamelAction,
 )
 
 # Make sure dragonfly errors show up in NatLink messages.
 dragonfly.log.setup_log()
-
-# Load _commands.txt.
-config = Config("commands")
-namespace = config.load()
 
 #-------------------------------------------------------------------------------
 # Common maps and lists.
@@ -104,7 +104,8 @@ symbol_map = {
     "less than": " < ",
     "greater equals": " >= ",
     "less equals": " <= ",
-    "fleck": ".",
+    "stone one": ".",
+    "stone": ". ",
     "leap": "(",
     "reap": ")",
     #"lake": "{"
@@ -131,7 +132,7 @@ symbol_map = {
     "fat arrow": " => ",
     "dub coal": "::",
     "amper": "&",
-    "dub and": " && ",
+    "dub amper": " && ",
     #"pipe": "|",
     #"dub pipe": " || ",
     #"hash": "#",
@@ -226,7 +227,7 @@ suffixes = [
 ]
 
 char_map = dict((k, v.strip())
-                for (k, v) in utils.combine_maps(letters_map, symbol_map).iteritems())
+                for (k, v) in utils.combine_maps(letters_map).iteritems())
 
 ### Final commands that can be used once after everything else. These change the
 ### application context so it is important that nothing else gets run after
@@ -238,14 +239,14 @@ slack_n = "7"
 # Ordered list of pinned taskbar items. Sublists refer to windows within a specific application.
 windows = [
     "browse",
+    "storm",
     "code",
-    "storm",  
-    "text",
+    "charm",
     "source",
     "email", # 6
     "slack", # 7
-    "paint",
-    "explore",  
+    "explore",
+    "text",
 ]
 
 windows_prefix = "go"
@@ -256,30 +257,55 @@ for i, window in enumerate(windows):
     for j, words in enumerate(window):
         windows_mapping[windows_prefix + " " + words] = Key("win:down, %d:%d/10, win:up" % (i + 1, j + 1))
 
+windows_prefix_second = "go to"
+windows_mapping_second = {}
+for i, window in enumerate(windows):
+    if isinstance(window, str):
+        window = [window]
+    for j, words in enumerate(window):
+        windows_mapping_second[windows_prefix_second + " " + words] = Key(
+            "win:down, %d:%d/10, %d:%d/10, win:up" % (i + 1, j + 1, i + 1, j + 1))
+
+
 # Work around security restrictions in Windows 8.
 if platform.release() == "8":
     swap_action = Mimic("press", "alt", "tab")
 else:
     swap_action = Key("alt:down, tab:%(n)d/25, alt:up")
 
-final_action_map = utils.combine_maps(windows_mapping, {
+final_action_map = utils.combine_maps(windows_mapping, windows_mapping_second, {
     "swap [<n>]":   swap_action,
 })
+
 final_element_map = {
-    "n": (IntegerRef(None, 1, 20), 1)
+    "n": (IntegerRef(None, 1, 5), 1)
 }
 final_rule = utils.create_rule("FinalRule",
                                final_action_map,
                                final_element_map)
 
-#-------------------------------------------------------------------------------
-# Action maps to be used in rules.
+class Slack:
+    def __init__(self, slack_n, outlook_n):
+        self.slack = Key("w-" + slack_n + "/100")
+        self.my_team = Key("c-2/30")
+        self.myself = Key("cs-t/100") + Text("you") + Key("enter/50")
+        self.msg_field = Mouse("[400, 1000]") # sometimes needs to be selected
+        self.copy_msg = Key("up/30, c-a/30, c-c/30")
+        self.outlook = Key("w-" + outlook_n + "/50")
+        self.copy_from_slack = self.slack + self.my_team + self.myself + self.msg_field + self.copy_msg
 
-# Key actions which may be used anywhere in any command.
-global_key_action_map = {
-    "punch [<n>]": Key("enter/5:%(n)d"),
-    "tab [<n>]": Key("tab/5:%(n)d"),
-}
+    def msg_to_mail(self):
+        new_msg_outlook = Key("c-1/15, c-n/30, tab:3/5, c-v/15")
+        action = self.copy_from_slack + self.outlook + new_msg_outlook 
+        return action
+
+    def copypaste_msg(self):
+        paste = Key("c-v") 
+        action = self.copy_from_slack + self.slack + paste
+        return action
+
+Slack = Slack(slack_n, outlook_n)
+
 
 class ToDir(ActionBase):
 
@@ -330,25 +356,25 @@ key_action_map = {
     "kill [<n>]":       release + Key("c-del/5:%(n)d"),
     
     # Copy/paste
-    "copy":         release + Key("c-c") +  Mouse("left:up"),
-    "paste":        release + Key("c-v"),
-    "cut [<n>]":    release + Key("c-x/5:%(n)d"),
+    "copy":             release + Key("c-c") +  Mouse("left:up"),
+    "paste":            release + Key("c-v"),
+    "chop [<n>]":       release + Key("c-x/5:%(n)d"),
     
     # Selection
     "mark all":             release + Key("c-a"),
-    "mark line":            release + Key("home/5, shift:down/5, end"),
-    "mark west":            release + Key("shift:down, home"),
-    "mark east":            release + Key("shift:down, end"),
+    "mark line":            release + Key("home/5, shift:down/5, end/5, shift:up"),
+    "mark west":            release + Key("shift:down/5, home/5, shift:up"),
+    "mark east":            release + Key("shift:down/5, end/5, shift:up"),
 
-    "mark right [<n>]":     release + Key("shift:down, c-right/5:%(n)d"),
-    "mark left [<n>]":      release + Key("shift:down, c-left/5:%(n)d"),
-    "mark up [<n>]":        release + Key("shift:down/5, up/5:%(n)d, home"), # cursor should be at end of line
-    "mark down [<n>]":      release + Key("shift:down/5, down/5:%(n)d, end"), # cursor should be at start of line
-    "mark it":              release + Key("c-right/5, shift:down, c-left"), 
+    "mark right [<n>]":     release + Key("shift:down/5, c-right/5:%(n)d, shift:up"),
+    "mark left [<n>]":      release + Key("shift:down/5, c-left/5:%(n)d, shift:up"),
+    "mark up [<n>]":        release + Key("shift:down/5, up/5:%(n)d, home/5, shift:up"), # cursor should be at end of line
+    "mark down [<n>]":      release + Key("shift:down/5, down/5:%(n)d, end/5, shift:up"), # cursor should be at start of line
+    "mark it":              release + Key("c-right/5, shift:down/5, c-left/5, shift:up"),
 
     # Mouse
     "fish":         Mouse("left"),
-    "fish right":   Mouse("right"), #TODO: dont work!
+    # "fish right":   Mouse("right"), #TODO: dont work!
     "middle":       Mouse("middle"),
     "fish twice":   Mouse("left:2"),
     "drag":         Mouse("left:down"),
@@ -371,14 +397,21 @@ key_action_map = {
     "save":             Key("c-s"),
     "save as":          Key("cs-s"),
     "file rename":      Key("f2"), 
-    "open box":         ToDir(info.DOWNLOAD, True), 
+    "open drive":       ToDir(info.C_DRIVE, True),
+
+    # Slack
+    #"slack to mail":    Slack.msg_to_mail(),
+    #"slack paste":      Slack.copypaste_msg(),
 
     # Misc
+    "tick [<n>]":           Key("enter/5:%(n)d"),
+    "tab [<n>]":            Key("tab/5:%(n)d"),
+    "coke [<n>]":           Key("s-tab/5:%(n)d"),
     "find":                 Key("c-f"),
-    "escape|quit":          Key("escape"),
+    "escape":               Key("escape"),
     "race":                 Key("end/5, enter"),
-    "coke [<n>]":           Key("s-tab/5:%(n)d"),   
-    "mouse run":            Key("csa-m"), 
+    "mouse run":            Key("csa-m"),
+    "lunch":                Key("f5"),
 
     # Dragon - remapped in Dragon-options
     "act off":      Key("csa-d"), 
@@ -396,6 +429,10 @@ key_action_map = {
     "hash":             Key("s-3"),
     "at symbol":        Key("ca-at"),
     "tilde":            tilde, # ~
+
+    # Info
+    "first name":       Text(info.FIRST_NAME),
+    "second name":      Text(info.LAST_NAME),
 }
 
 # Actions for speaking out sequences of characters.
@@ -405,35 +442,9 @@ character_action_map = {
     "shout <letters>": Function(lambda letters: Text(letters.upper()).execute()),
 }
 
-# Actions that can be used anywhere in any command.
-global_action_map = utils.combine_maps(global_key_action_map,
-                                       utils.text_map_to_action_map(symbol_map))
-
 # Actions that can be used anywhere except after a command with arbitrary
 # dictation.
-command_action_map = utils.combine_maps(global_action_map, key_action_map)
-
-# Here we prepare the action map of formatting functions from the config file.
-# Retrieve text-formatting functions from this module's config file. Each of
-# these functions must have a name that starts with "format_".
-format_functions = {}
-if namespace:
-    for name, function in namespace.items():
-        if name.startswith("format_") and callable(function):
-            spoken_form = function.__doc__.strip()
-
-            # We wrap generation of the Function action in a function so
-            #  that its *function* variable will be local.  Otherwise it
-            #  would change during the next iteration of the namespace loop.
-            def wrap_function(function):
-                def _function(dictation):
-                    formatted_text = function(dictation)
-                    Text(formatted_text).execute()
-                return Function(_function)
-
-            action = wrap_function(function)
-            format_functions[spoken_form] = action
-
+command_action_map = utils.combine_maps(utils.text_map_to_action_map(symbol_map), key_action_map)
 #-------------------------------------------------------------------------------
 # Simple elements that may be referred to within a rule.
 
@@ -469,8 +480,11 @@ chars_element = RuleWrap(None, utils.JoinedRepetition(
 
 # Simple element map corresponding to keystroke action maps from earlier.
 keystroke_element_map = {
-    "n": (IntegerRef(None, 1, 21), 1),
-    "text": Dictation(),
+    "n": (IntegerRef(None, 1, 10), 1),
+    "text": RuleWrap(None, Alternative([
+        Dictation(),
+        DictListRef(None, char_dict_list),
+    ])),
     "char": DictListRef(None, char_dict_list),
     "custom_text": RuleWrap(None, Alternative([
         Dictation(),
@@ -482,42 +496,6 @@ keystroke_element_map = {
 
 #-------------------------------------------------------------------------------
 # Rules which we will refer to within other rules.
-
-# Rule for formatting mixed_dictation elements.
-format_rule = utils.create_rule(
-    "FormatRule",
-    format_functions,
-    {"dictation": mixed_dictation}
-)
-
-start_menu_rule = utils.create_rule(
-    "StartMenuRule",
-    {
-        "program <text>": Key("win/40") + Text("%(text)s"),
-    },
-    {
-        "text": Dictation()
-    }
-)
-
-# Rule for printing single characters.
-single_character_rule = utils.create_rule(
-    "SingleCharacterRule",
-    character_action_map,
-    {
-        "numerals": DictListRef(None, numbers_dict_list),
-        "letters": DictListRef(None, letters_dict_list),
-        "chars": DictListRef(None, char_dict_list),
-    }
-)
-
-# Rule for spelling a word letter by letter and formatting it.
-spell_format_rule = utils.create_rule(
-    "SpellFormatRule",
-    dict([("spell " + k, v)
-          for (k, v) in format_functions.items()]),
-    {"dictation": letters_element}
-)
 
 # Rule for printing a sequence of characters.
 character_rule = utils.create_rule(
@@ -540,22 +518,6 @@ single_action = RuleRef(rule=utils.create_rule("CommandKeystrokeRule",
                                                command_action_map,
                                                keystroke_element_map))
 
-# Element matching dictation and commands allowed at the end of an utterance.
-# For efficiency, this should not contain any repeating elements. For accuracy,
-# few custom commands should be included to avoid clashes with dictation
-# elements.
-dictation_element = RuleWrap(None, Alternative([
-    RuleRef(rule=start_menu_rule),
-    RuleRef(rule=format_rule),
-    RuleRef(rule=utils.create_rule("DictationKeystrokeRule",
-                                   global_action_map,
-                                   keystroke_element_map)),
-    RuleRef(rule=single_character_rule),
-]))
-
-
-
-
 #---------------------------------------------------------------------------
 # Here we define the top-level rule which the user can say.
 
@@ -569,30 +531,21 @@ class RepeatRule(CompoundRule):
     def __init__(self, name, command, terminal_command, context):
         # Here we define this rule's spoken-form and special elements. Note that
         # nested_repetitions is the only one that contains Repetitions, and it
-        # is not itself repeated. This is for performance purposes. We also
-        # include a special escape command "terminal <dictation>" in case
-        # recognition problems occur with repeated dictation commands.
+        # is not itself repeated. This is for performance purposes.
         spec = ("[<sequence>] "
                 "[<nested_repetitions>] "
-                "([<dictation_sequence>] [terminal <dictation>] | <terminal_command>) "
-                "[[[and] repeat [that]] <n> times] "
+                "[<terminal_command>] "
                 "[<final_command>]")
         extras = [
             Repetition(command, min=1, max = 5, name="sequence"),
-            Alternative([RuleRef(rule=character_rule), RuleRef(rule=spell_format_rule)],
+            Alternative([RuleRef(rule=character_rule)],
                         name="nested_repetitions"),
-            Repetition(dictation_element, min=1, max=5, name="dictation_sequence"),
-            utils.ElementWrapper("dictation", dictation_element),
             utils.ElementWrapper("terminal_command", terminal_command),
-            IntegerRef("n", 1, 100),  # Times to repeat the sequence.
             RuleRef(rule=final_rule, name="final_command"),
         ]
         defaults = {
-            "n": 1,                   # Default repeat count.
             "sequence": [],
             "nested_repetitions": None,
-            "dictation_sequence": [],
-            "dictation": None,
             "terminal_command": None,
             "final_command": None,
         }
@@ -605,28 +558,18 @@ class RepeatRule(CompoundRule):
     #  - node -- root node of the recognition parse tree.
     #  - extras -- dict of the "extras" special elements:
     #     . extras["sequence"] gives the sequence of actions.
-    #     . extras["n"] gives the repeat count.
     def _process_recognition(self, node, extras):
         sequence = extras["sequence"]   # A sequence of actions.
         nested_repetitions = extras["nested_repetitions"]
-        dictation_sequence = extras["dictation_sequence"]
-        dictation = extras["dictation"]
         terminal_command = extras["terminal_command"]
         final_command = extras["final_command"]
-        count = extras["n"]             # An integer repeat count.
-        for i in range(count):
-            for action in sequence:
-                action.execute()
-                Pause("5").execute()
-            if nested_repetitions:
-                nested_repetitions.execute()
-            for action in dictation_sequence:
-                action.execute()
-                Pause("5").execute()
-            if dictation:
-                dictation.execute()
-            if terminal_command:
-                terminal_command.execute()
+        for action in sequence:
+            action.execute()
+            Pause("5").execute()
+        if nested_repetitions:
+            nested_repetitions.execute()
+        if terminal_command:
+            terminal_command.execute()
         release.execute()
         if final_command:
             final_command.execute()
@@ -695,82 +638,150 @@ class Environment(object):
 
 ### Global
 
+global_terminal_action_map =  {
+    "tell <text>":      TextAction(),
+    "phrase <text>":    PhraseAction(),
+    "scream <text>":    UpperAction(),
+    "score <text>":     ScoreAction(),
+    "combine <text>":   WordAction(),
+    "dart <text>":      DashAction(),
+    "caps <text>":      CapsAction(),
+    "cam <text>":       CamelAction(),
+
+    "program <text>":   TextAction(prefix=Key("win/40"), preprocess=True),
+
+}
+
 global_environment = Environment(name="Global",
                                  action_map=command_action_map,
+                                 terminal_action_map=global_terminal_action_map,
                                  element_map=keystroke_element_map)
 
 ### Language action maps
 
+class CommandWindow(ActionBase):
+
+    def __init__(self, path, action=Key("")):
+        super(CommandWindow, self).__init__()
+        self.open_run = Key("w-r/60")
+        self.action = action
+        self.clipboard = "cmd /K \"cd " + path  + "\""
+
+    def _execute(self, data=None):
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        try:
+            win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, unicode(self.clipboard))
+        finally:
+            win32clipboard.CloseClipboard()
+            action = self.open_run + Key("c-v/5, enter/100") + self.action
+            action.execute()             
+
 programming_action_map = {
-   
+
     # Macros
     "call out":     Key("end/5, lparen/5, rparen/5, semicolon/5, enter"),
     "last":         Key("end/5, semicolon/5, enter"), 
     "hit":          Key("end/5, comma/5, enter"),  
 
-    "if":           Text("if ("),
-    "box":          Text("var"), 
+    "make if":      Text("if ("),
     "scope":        Key("end/5, space/5") + lbrace + Key("enter"),
 
+    "return":       Text("return "),
+    "dead":         Text("null"),
 }
- 
+
 programming_terminal_action_map = {
-    
+
     # Common/general code
-    "box <text1>":          CamelAction(Text("var ")), 
-    "buff <text1>":         CamelAction(Text(" = ")),
-    "if <text1>":           CamelAction(Text("if (")),
-    "return <text1>":       CamelAction(Text("return ")), 
-    "fleck <text1>":        CamelAction(Text(".")), 
+    "fleck <text>":        CamelAction(Text(".")),
+    "new <text>":          CapsAction(Text("new ")),
+    "now <text>":          CapsAction(Text(" = new ")),  
+    "grain <text>":        CapsAction(Text(".")), 
 
-    "hats <text1>":         CapsAction(Text(" = ")), 
-    "new <text1>":          CapsAction(Text("new ")), 
-    "now <text1>":          CapsAction(Text(" = new ")),  
-    "grain <text1>":        CapsAction(Text(".")), 
+    #"add <text>":          CamelAction(Text(" + ")),
+    #"sub <text>":          CamelAction(Text(" - ")),
+    #"and <text>":          CamelAction(Text(" && ")),
+    #"or <text>":           CamelAction(Text(" ") + pipe + pipe + Text(" ")),
+    #"like it <text>":      CamelAction(Text(" == ")),
+    # "not <text>":          CamelAction(Text(" != ")),
+    "less <text>":         CamelAction(Text(" < ")), 
+    "big <text>":          CamelAction(Text(" > ")), 
+    "lobe <text>":         CamelAction(lbracket), # [..]
+    "buff <text>":         CamelAction(Text(" = ")),
+    "hats <text>":         CapsAction(Text(" = ")),
 
-    "add <text1>":          CamelAction(Text(" + ")), 
-    "sub <text1>":          CamelAction(Text(" - ")), 
-    "and <text1>":          CamelAction(Text(" && ")), 
-    "or <text1>":           CamelAction(Text(" ") + pipe + pipe + Text(" ")),
-    "like it <text1>":      CamelAction(Text(" == ")), 
-    "not <text1>":          CamelAction(Text(" != ")),
-    "less <text1>":         CamelAction(Text(" < ")), 
-    "big <text1>":          CamelAction(Text(" > ")), 
-    "lobe <text1>":         CamelAction(lbracket), # [..]
-    "floor <text1>":        CamelAction(Text("_")), 
-    "leap <text1>":         CamelAction(Text("(")),
-    "quote <text1>":        TextAction(Text("\"")),
+    "floor <text>":         CamelAction(Text("_")),
+    "leap <text>":          CamelAction(Text("(")),
+    "make if <text>":       CamelAction(Text("if (")),
+    "quote <text>":         TextAction(Text("\"")),
+    "constant <text>":      UpperScoreAction(),
+
+    #"bind <num_seq>":       Text(" = %(num_seq)s"), 
 
     # Marked words
     "true":         Text("true"),
     "false":        Text("false"),
-    "else":         Text(" else ") + lbrace + Key("enter/5"), 
-
 }
 
 web_container_map = {
     "ace": "a",
+    # "bed": "b",
+    # "chair": "c",
     "dell": "div",
+    #"egg": "e",
     "fame": "form",
+    # "golf": "g",
+    # "heart": "h",
     "ice": "input",
+    #"joy": "j",
+    #"king": "k",
     "love": "li",
+    #"mars": "m",
+    #"neck": "n",
+    #"ork": "o",
     "pork": "p",
+    #"quest": "q",
+    #"rug": "r",
     "sea": "span",
     "tan": "table",
     "ush": "ul",
+    #"van": "v",
+    #"wish": "w",
+    #"trex": "x",
+    #"yang": "y",
+    #"zulu": "z",
 }
 
 web_container_map_dict_list = DictList("web_container_map_dict_list", web_container_map)
 
 css_words_map = {
+#     "ace": "a",
     "bed": "border",
     "chair": "color",
     "dell": "display",
+    # "egg": "e",
     "fame": "font",
-    "heart": "height",
+    # "golf": "g",
+     "heart": "height",
+#     "ice": "i",
+#     "joy": "j",
+#     "king": "k",
+#     "love": "l",
     "mars": "margin",
+#     "neck": "n",
+#     "ork": "o",
     "pork": "padding",
+    # "quest": "q",
+#     "rug": "r",
+#     "sea": "s",
+#     "tan": "t",
+#     "ush": "u",
+#     "van": "v",
     "wish": "width",
+    # "trex": "x",
+#     "yang": "y",
+#     "zulu": "z",
 }
 
 css_words_map_dict_list = DictList("css_words_map_dict_list", css_words_map)
@@ -783,7 +794,8 @@ web_action_map = {
     "path":         Text("href=") + Key("dquote"),
 
     "can <web_container>":        Text("%(web_container)s"), 
-    "ring <web_container>":       Text("</%(web_container)s>"), 
+    "luke <web_container>":       Text("<%(web_container)s"),
+    "ring <web_container>":       Text("</%(web_container)s>"),
     "sheet <css_word>":           Text("%(css_word)s"),
 }
 
@@ -791,9 +803,8 @@ web_action_map = {
 web_terminal_action_map = {
 
     # CSS
-    "spot <text1>":         DashAction(Text(".")), 
-    "size <num_seq>":       Text(": %(num_seq)s"), 
-    "head <num_seq>":       Text("<h%(num_seq)s>"), 
+    "spot <text>":          DashAction(Text(".")),
+    "size <num_seq>":       Text(": %(num_seq)s"),
 }
 
 js_action_map = {
@@ -803,45 +814,42 @@ js_action_map = {
     "third is":     Text(" === "),
     "this":         Text("this"), 
     "backfire":     Text("callback"), 
-    "log":          Text("console.log("),
 
-    "room":         lbrace + Key("enter"),
+    "box <text>":   CamelAction(Text("let ")),
+    "short box":          Text("let"),
+    "make logger":    Text("console.log("),
 
 }
 
 js_terminal_action_map = {
 
     # JavaScript
-    "place <text1>":        CamelAction(Text(": ")),
-    "no <text1>":           CamelAction(Text(" !== ")),
-    "loop <text1>":         CamelAction(Text("for (var i = 0; i < "), Text("; i++) ")) + Key("left/5:7"),
-    "math <text1>":         CamelAction(Text("function (")),  
-    "funk <text1>":         CamelAction(Text("function ")), 
-    "else if <text1>":      CamelAction(Text("else if (")), 
-
-    "pack <text1>":         CapsAction(Text("var ")),
+    "place <text>":        CamelAction(Text(": ")),
+    "no <text>":           CamelAction(Text(" !== ")),
+    "loop <text>":         CamelAction(Text("for (let i = 0; i < "), Text("; i++) ")) + Key("left/5:7"),
+    "math <text>":         CamelAction(Text("function (") + lbrace + Text(" ")),
+    "funk <text>":         CamelAction(Text("function ")), 
+    "else if <text>":      CamelAction(Text("else if (")),
+    "logger <text>":       CamelAction(Text("console.log(")),
 }
 
 react_action_map = {
     
     # Frequently used words
     "export":       Text("export "), 
-    "state":        Text("state"),
+    "state":        Text("this.state."),
     "dispatch":     Text("dispatch"),
-    "action":       Text("action"),
-    "default":      Text("default "), 
+    "default":      Text("default "),
+    "props":        Text("this.props."),
+    "connect":      Text(".bind(this)"),
     "const":        Text("const "),
-    "props":        Text("this.props"), 
-    "const":        Text("const "),
-    "return":       Text("return "), 
-
-    "spring":        Key("end/5, enter"), 
+    "return":       Text("return "),
 
     # Writing HTML
-    "frame":        Key("end") + Text("/>"), 
-    
+    "frame":        Key("end") + Text("/>"),
+
     # Finish element,  ex. </ul>
-    "edge":         Key("end") + Text("</") + Key("c-left/5:3, enter"),
+    "edge":         Key("end") + Text("</") + Key("c-left/5:3"),
     
     "land":         Text(" => ") + lbrace + rbrace + Key("left/5, enter"),
     "trait":        Text("=") + lbrace, 
@@ -849,31 +857,28 @@ react_action_map = {
     "action switch":    Text("switch (action.type) ") + lbrace + Key("enter"), 
     "default switch":   Text("default:") + Key("enter") + Text("return state;"),
    
-    "name":         Text("className='"), 
-
-    # New component
-    "class now":    Text(" = React.createClass(") + lbrace + Key("enter"), 
-    "show funk":    Text("render: function()") + lbrace + Key("enter"),
-
+    "name":         Text("className=\""),
 }
 
 react_terminal_action_map = {
 
     # Writing HTML
-    "trunk <text1>":        CamelAction(Text("<div className='"), Text("'>") + Key("left/5:2")),
-    "name <text1>":         CamelAction(Text("className='")),
-    "base <text1>":         CapsAction(Text("<"), Text("/>")) + Key("left/5:2"), 
-    "angle <text1>":        CapsAction(Text("<")),
+    "trunk <text>":        CamelAction(Text("<div className='"), Text("'>") + Key("left/5:2")),
+    "name <text>":         CamelAction(Text("className=\"")),
+    "base <text>":         CapsAction(Text("<"), Text("/>")) + Key("left/5:2"), 
+    "angle <text>":        CapsAction(Text("<")),
 
     # Frequently used words
-    "const <text1>":        CapsAction(Text("const ")),
-    "dispatch <text1>":     CamelAction(Text("dispatch(")),
-    "case <text1>":         UpperScoreAction(Text("case ")),
+    "const <text>":        CamelAction(Text("const ")),
+    "dispatch <text>":     CamelAction(Text("dispatch(")),
+    "case <text>":         UpperScoreAction(Text("case ")),
 
-    "trait <text1>":        CamelAction(Text("=") + lbrace),
-    "lake <text1>":         CamelAction(lbrace),
-    "cite <text1>":         CamelAction(Text("('")), 
-    "quote <text1>":        CamelAction(Text("'")),
+    "trait <text>":        CamelAction(Text("=") + lbrace),
+    "lake <text>":         CamelAction(lbrace),
+    "cite <text>":         CamelAction(Text("('")), 
+    "quote <text>":        CamelAction(Text("'")),
+    "state <text>":        CamelAction(Text("this.state.")),
+    "props <text>":        CamelAction(Text("this.props.")),
 
 }
 
@@ -887,6 +892,7 @@ c_sharp_action_map = {
     "static":       Text("static "), 
     "shy":          Text("void "),
     "dead":         Text("null"),
+    "const":        Text("const "),
 
     # C# types
     "I":            Text("int "),
@@ -894,25 +900,28 @@ c_sharp_action_map = {
     "string":       Text("string "),
     
     # C# macros
-    "prop":         Key("space/5") + lbrace + Text(" get; set;") + Key("end/15, enter"),
+    "properties":   Key("space/5") + lbrace + Text(" get; set;"),
     "not":          Text(" != "),
     "number":       Text("IEnumerable"), 
     "scope":        Key("end/5, enter/5") + lbrace + Key("enter"),
+
+    "box <text>":   CamelAction(Text("var ")),
+    "short box":          Text("var"),
 
 }
 
 c_sharp_terminal_action_map = {
     
     # C# 
-    "string <text1>":       CamelAction(Text("string ")),
-    "bin <text1>":          CamelAction(Text("bool ")),
-    "type <text1>":         CapsAction(suffix = Text(" ")), 
-    "class <text1>":        CapsAction(Text("class ")), 
-    "angle <text1>":        CapsAction(Key("langle/15")), 
-    "number <text1>":       CapsAction(Text("IEnumerable<")),
+    "land <text>":                 CamelAction(suffix = Text(" => ")) + CamelAction(), 
+    "loop <text> in <text2>":      TwoCamelAction(Text("foreach (var "), Text(" in ")),
 
-    "land <text1>":                 CamelAction(suffix = Text(" => ")) + CamelAction(), 
-    "loop <text1> in <text2>":      TwoCamelAction(Text("foreach (var "), Text(" in ")),
+    "number <text>":               CapsAction(Text("IEnumerable<")),
+    "class <text>":                CapsAction(Text("class ")), 
+    "angle <text>":                CapsAction(Key("langle/15")),
+    "throw new <text>":            CapsAction(Text("throw new ")),
+    "type <text>":                 CapsAction(suffix=Text(" ")),
+
 }
 
 ### Chrome
@@ -933,6 +942,23 @@ letters_map_dict_list  = DictList("letters_map_dict_list", letters_map)
 
 def open_website(url, delay=0):
     return Key("c-t/15") + Text(url) + Key("enter/" + str(delay))
+
+class OpenWebsite(ActionBase):
+
+    def __init__(self, url, delay=5):
+        super(OpenWebsite, self).__init__()
+        self.url = url
+        self.delay = delay
+
+    def _execute(self, data=None):
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        try:
+            win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, unicode(self.url))
+        finally:
+            win32clipboard.CloseClipboard()
+            action = Key("c-t/5, c-v/5") + Key("enter/" + str(self.delay))
+            action.execute()
 
 chrome_action_map = {
     # https://support.google.com/chrome/answer/157179?hl=en
@@ -969,26 +995,34 @@ chrome_action_map = {
     "zoom out":         Key("c-minus"),
 
     # Websites
-    "page gmail":     open_website(info.GMAIL),
-    "page code":      open_website(info.GITHUB),
+    "page gmail":       OpenWebsite(info.GMAIL),
+    "page code":        OpenWebsite(info.GITHUB),
 
     # Info
     "phone":            Text(info.PHONE),
     "number":           Text(info.NUMBER),
     "user":             Text(info.USER),
-    "name":             Text(info.NAME),
+    "my name":          Text(info.NAME),
     "first name":       Text(info.FIRST_NAME),
-    "last name":        Text(info.LAST_NAME),
+    "second name":      Text(info.LAST_NAME),
 
     "light":            Key("f"), # activate Vimium
 
     # Development
     "scan":                 Key("cs-c"),
     "pics":                 Text("px"), 
-    "shift rise":           Key("s-up"), 
+    "shift rise":           Key("s-up"),
+    "shift fall":           Key("s-down"),
+
+    "elements":             Mouse("[1250, 110], left"),
+    "console":              Mouse("[1110, 110], left"),
     "compute":              Mouse("[1460, 147], left"), # compute button
-    "style":                Mouse("[1416, 215], left"), # element.style
-    "read":                 Mouse("[1230, 428], left"), # DOM area
+    "style":                Mouse("[1400, 147], left"), # styles button
+    "this":                 Mouse("[1250, 560], left"), # element.style
+    "read":                 Mouse("[1360, 250], left"), # DOM area
+
+    "redux":                Mouse("[1807, 47]"), # redux extension
+
     "step [<n>]":           RepeatAction(Key("tab/5:2")),
     "walk [<n>]":           RepeatAction(Key("s-tab/5:2")),
     "sheet <css_word>":     Text("%(css_word)s"),
@@ -1002,7 +1036,6 @@ chrome_terminal_action_map = {
 }
  
 chrome_element_map = {
-    "n": (IntegerRef(None, 0, 10), 1),
     "letters": utils.JoinedRepetition(
           "", DictListRef(None, letters_map_dict_list), min=0, max=4),
     "css_word": DictListRef(None, css_words_map_dict_list),
@@ -1015,7 +1048,16 @@ chrome_environment = Environment(name="Chrome",
                                  terminal_action_map=chrome_terminal_action_map,
                                  element_map=chrome_element_map)
 
-### Visual Studio and WebStorm
+
+
+internet_explorer = Environment(name="InternetExplorer",
+                                 parent=global_environment,
+                                 context=AppContext(title=" - Internet Explorer"),
+                                 action_map=chrome_action_map,
+                                 terminal_action_map=chrome_terminal_action_map,
+                                 element_map=chrome_element_map)
+
+### Visual Studio
 
 class FindAction(CamelAction): 
    
@@ -1027,11 +1069,11 @@ studio_editor_action_map = {
 
     # VS tabs 
     "next [<n>]":       Key("c-tab/5:%(n)d"), # Window.NextTab remapped with Productivity Power Tools 
-    "pro [<n>]":       Key("cs-tab/5:%(n)d"), # Window.PreviousTab remapped with Productivity Power Tools
+    "pro [<n>]":        Key("cs-tab/5:%(n)d"), # Window.PreviousTab remapped with Productivity Power Tools
     "close [<n>]":      Key("c-f4/5:%(n)d"), 
 
     # VS misc
-    "cut [<n>]":            Key("c-x/15:%(n)d"),
+    "chop [<n>]":           Key("c-x/15:%(n)d"),
     "drop [<n>]":           Key("cs-l/15:%(n)d"), 
     "line [<num_seq>]":     Key("c-g/15") + Text("%(num_seq)s") + Key("enter"),
     "back [<n>]":           Key("c-hyphen/15:%(n)d"),
@@ -1039,21 +1081,28 @@ studio_editor_action_map = {
     "search":               Key("cs-f/5"),
     "open project":         Key("cs-o"), 
     "packages":             Key("csa-n"), # mapped to Project.ManageNuGetPackages
-    "options":              Key("csa-o"), # mapped to Tools.Options
+    "settings":             Key("csa-o"), # mapped to Tools.Options
     "show type":            Key("ctrl:down, k, i"), 
     "existing item":        Key("sa-a"),  
     "vertical":             Key("csa-v"), # mapped to Window.NewVerticalTabGroup
-    
+    "that replace":         Key("c-h"), 
+    "locals":               Key("csa-l"),
+    "editor":               Key("as-enter"),
+    "save":                 Key("cs-s"),
+
     # Build/run
-    "build":            Key("cs-b"),
+    "build":            Key("c-b"),
     "build again":      Key("cs-b, r"), # mapped to Build.RebuildSolution
     "clean it":         Key("cs-b, c"), # mapped to Build.CleanSolution
     "lunch [<n>]":      Key("f5/15:%(n)d"), # launch/continue application
-    "restart":          Key("cs-f5"), 
+    "restart":          Key("cs-f5"),
+    "remove":           Key("ca-d"), # mapped to Debug.DetachAll
+    "connect":          Key("c-r, c-1"),  # mapped to Reattach to process 1
+    "run":                      Key("c-b/400, c-r, c-1"),
 
     # Debuging
     "breakpoint":       Key("f9"), 
-    "break it":         Mouse("left/5") + Key("f9"), 
+    "break it":         Mouse("left/5") + Key("f9"),
     "germ it [<n>]":    Key("f10/15:%(n)d"), # step over
     "step into":        Key("f11"),
     "germ end":         Key("s-f5"),
@@ -1063,13 +1112,14 @@ studio_editor_action_map = {
 studio_editor_terminal_action_map = {
 
     # Find/Search
-    "search <text1>":       CamelAction(Key("cs-f/30")), # search solution
-    "find <text1>":         FindAction(), # find in file
-    "fly <text1>":          CamelAction(Key("cs-t/5")),  # search type/symbol/file name
+    "search <text>":       CamelAction(Key("cs-f/30")), # search solution
+    "find <text>":         FindAction(), # find in file
+    "fly <text>":          CamelAction(Key("cs-t/5")),  # search type/symbol/file name
     "file <letters>":       Key("cs-t/5") + Text("%(letters)s"), # search file name
     "symbol <letters>":     Key("sa-t/5") + Text("%(letters)s"), # search symbol   
 
-    "supply class <text1>":    CapsAction(Key("ca-a, c/60, left/15, del/5:6")), # mapped to Project.AddClass
+    "supply class <text>":      CapsAction(Key("ca-a, c/60, left/15, del/5:6")), # mapped to Project.AddClass
+    "to method <text>":         CapsAction(Key("c-r, m/30")),
 
 }
 
@@ -1098,7 +1148,7 @@ resharper_action_map = {
     "surround for":         Key("c-e, u/15, 3"),
     "surround leap":        Key("c-e, u/15, d"),
 
-    "import it":            Key("a-enter"), 
+    "import":               Key("a-enter"),
     "make code":            Key("a-insert"), 
     "construct":            Key("a-insert/15, enter"), 
 
@@ -1116,7 +1166,6 @@ resharper_action_map = {
 
     # Refactor
     "rename":           Key("c-r, r"),
-    "to method":        Key("c-r, m"),
     "to box":           Key("c-r, v"),
     "cleanup":          Key("c-e, c"), 
 
@@ -1127,7 +1176,10 @@ resharper_action_map = {
      # Misc
     "complete":         Key("c-space"),
     "clone":            Key("c-d"),
+    "show file":        Key("as-l"), 
 }
+
+### WebStorm
 
 web_storm_editor_action_map = {
     
@@ -1142,14 +1194,16 @@ web_storm_editor_action_map = {
     "forward [<n>]":        Key("ca-right/15:%(n)d"),
 
     # Editing
-    "drop [<n>]":           Key("c-y/15:%(n)d"), 
+    "drop [<n>]":           Key("c-y/15:%(n)d"),
 
     # Misc
     "settings":             Key("ca-s"),
     "search":               Key("cs-f/5"),
     "open project":         Key("cs-o"), # mapped to Open
     "open recent":          Key("csa-o"), # mapped to Open recent
-    "panel <n>":            Key("a-%(n)d"), 
+    "panel <n>":            Key("a-%(n)d"),
+    "editor":               Key("cs-f12"),
+    "lunch":                Key("a-4/15, c-f5"),
 
     # Resharper type commands
 
@@ -1169,7 +1223,7 @@ web_storm_editor_action_map = {
     "surround":             Key("ca-t"),
     "surround if":          Key("ca-t/15, 1"),
 
-    "import it":            Key("a-enter"), 
+    "import":            Key("a-enter"),
     "make code":            Key("a-insert"), 
 
     # Bookmarks
@@ -1179,6 +1233,7 @@ web_storm_editor_action_map = {
     # Navigate to
     "changed [<n>]":    Key("cs-backspace/5:%(n)d"), # go to last edited location
     "recent":           Key("c-e"), # show recent files
+    "switch":           Key("c-e/5, enter"), # show recent files
     "tread":            Key("ca-b"),
     "move declare":     Key("c-b"),
     "usage":            Key("a-f7"),
@@ -1187,6 +1242,7 @@ web_storm_editor_action_map = {
 
     # Refactor
     "rename":           Key("s-f6"),
+    "replace":          Key("c-r"),
     "to method":        Key("ca-m"),
     "to box":           Key("ca-v"),
 
@@ -1196,17 +1252,33 @@ web_storm_editor_action_map = {
 
      # Misc
     "complete":         Key("c-space"),
-    "clone":            Key("c-d"), 
+    "clone":            Key("c-d"),
+
+
+    # CommandWindow commands
+    "build program": CommandWindow("C:\\", Text("npm run build") + Key("enter")),
+
 }
 
 web_storm_terminal_action_map = {
    
     # Find/Search
-    "search <text1>":       CamelAction(Key("cs-f/30")), # search solution
-    "fly <text1>":          CamelAction(Key("shift:down/5, shift:up/5, shift:down/5, shift:up/5")),  # search everywhere
-    "symbol <letters>":     Key("csa-n/5") + Text("%(letters)s"), # search symbol   
-    "class <letters>":      Key("c-n/5") + Text("%(letters)s"), # search symbol   
+    "search <text>":       CamelAction(Key("cs-f/30")), # search solution
+    "fly <text>":          CamelAction(Key("shift:down/5, shift:up/5, shift:down/5, shift:up/15")),  # search everywhere
+    # "symbol <letters>":     Key("csa-n/5") + Text("%(letters)s"), # search symbol
+    #"class <letters>":      Key("c-n/5") + Text("%(letters)s"), # search class
+    "find <text>":          FindAction(),  # find in file
+
+    "supply file <text>":   CapsAction(Key("csa-s/15")),  # mapped to new file
 }
+
+py_charm_action_map = {
+
+    # Dragonfly
+   "text":              Text("Text(\""),
+   "key":               Text("Key(\""),
+}
+
 
 # Merge the contents of multiple maps, giving precedence to later maps
 
@@ -1219,12 +1291,14 @@ front_end_terminal_action_map = utils.combine_maps(programming_terminal_action_m
                                                     web_terminal_action_map,  
                                                     js_terminal_action_map)
 
-studio_action_map = utils.combine_maps(programming_action_map, 
+studio_action_map = utils.combine_maps(programming_action_map,
+                                        js_action_map,
                                         c_sharp_action_map,
                                         studio_editor_action_map, 
                                         resharper_action_map)
 
 studio_terminal_action_map = utils.combine_maps(programming_terminal_action_map,
+                                                js_terminal_action_map,
                                                 c_sharp_terminal_action_map, 
                                                 studio_editor_terminal_action_map)
 
@@ -1235,6 +1309,12 @@ web_storm_action_map = utils.combine_maps(front_end_action_map,
 web_storm_terminal_action_map = utils.combine_maps(front_end_terminal_action_map,
                                                     react_terminal_action_map, 
                                                     web_storm_terminal_action_map)
+
+py_charm_action_map = utils.combine_maps(py_charm_action_map,
+                                         programming_action_map,
+                                         web_storm_editor_action_map)
+
+py_charm_terminal_action_map = web_storm_terminal_action_map
 
 line_char_map = {
     "zero": "0",
@@ -1254,15 +1334,10 @@ line_char_dict_list  = DictList("line_char_dict_list", line_char_map)
 
 
 studio_element_map = {
-    "n": (IntegerRef(None, 0, 100), 1),
     "num_seq": utils.JoinedRepetition(
         "", DictListRef(None, line_char_dict_list), min=0, max=6), 
     "letters": utils.JoinedRepetition(
         "", DictListRef(None, letters_map_dict_list), min=0, max=4), 
-    "text1": RuleWrap(None, Alternative([
-        Dictation(),
-        DictListRef(None, char_dict_list),
-    ])), 
     "text2": RuleWrap(None, Alternative([
         Dictation(),
         DictListRef(None, char_dict_list),
@@ -1276,19 +1351,22 @@ visual_studio_environment = Environment(name="Visual_studio",
                                  terminal_action_map=studio_terminal_action_map,
                                  element_map=studio_element_map)
 
+visual_studio_environment_admin = Environment(name="Visual_studio_admin",
+                                 parent=global_environment,
+                                 context=AppContext(title=" - Microsoft Visual Studio (Administrator)"),
+                                 action_map=studio_action_map,
+                                 terminal_action_map=studio_terminal_action_map,
+                                 element_map=studio_element_map)
+
 web_storm_element_map = {
-    "n": (IntegerRef(None, 0, 100), 1),   
     "web_container": DictListRef(None, web_container_map_dict_list),
     "css_word": DictListRef(None, css_words_map_dict_list),
     "num_seq": utils.JoinedRepetition(
         "", DictListRef(None, line_char_dict_list), min=0, max=6), 
     "letters": utils.JoinedRepetition(
         "", DictListRef(None, letters_map_dict_list), min=0, max=4),
-    "text1": RuleWrap(None, Alternative([
-        Dictation(),
-        DictListRef(None, char_dict_list),
-    ])), 
 }
+
 
 web_storm_environment = Environment(name="Web_storm",
                                  parent=global_environment,
@@ -1296,6 +1374,15 @@ web_storm_environment = Environment(name="Web_storm",
                                  action_map=web_storm_action_map,
                                  terminal_action_map=web_storm_terminal_action_map,
                                  element_map=web_storm_element_map)
+
+py_charm_element_map = web_storm_element_map
+
+py_charm_environment = Environment(name="Py_charm",
+                                 parent=global_environment,
+                                 context=AppContext(executable="PyCharm"),
+                                 action_map=py_charm_action_map,
+                                 terminal_action_map=py_charm_terminal_action_map,
+                                 element_map=py_charm_element_map)
 
 ### SourceTree
 ### Version 1.8.2.11
@@ -1305,24 +1392,25 @@ class StageDiscardHunkAction(ActionBase):
     def __init__(self, operation="stage"):
         super(StageDiscardHunkAction, self).__init__()
         self.operation = operation
-        self.file_area  = Mouse("[1240, 185]")
+        self.file_area  = Mouse("[1240, 185], left")
 
     def _execute(self, data=None):
         extra_tab = 1 if self.operation == "discard" else 0
-        key_string =  "tab/5:" + str(data["n1"] * 4 + extra_tab)
+        key_string =  "tab/5:" + str(data["n"] * 4 + extra_tab)
         action = self.file_area + Key(key_string)
         action.execute()
    
-class ClickFileAction(ActionBase): 
-   
-    def __init__(self, mouse_x = 320, mouse_y = 590):
+class ClickFileAction(ActionBase):
+
+    #def __init__(self, mouse_x=362, mouse_y=387):# 1280x720
+    def __init__(self, mouse_x=396, mouse_y=610):
         super(ClickFileAction, self).__init__()
         self.mouse_x = mouse_x
         self.mouse_y = mouse_y
 
     def _execute(self, data=None):
-        mouse_x =  str(self.mouse_x + (data["n2"] - 1) * 2)
-        mouse_y =  str(self.mouse_y + (data["n2"] - 1) * 30)
+        mouse_x =  str(self.mouse_x + (data["n"] - 1) * 2)
+        mouse_y =  str(self.mouse_y + (data["n"] - 1) * 20)
         action = Mouse("[" + mouse_x + ", " + mouse_y + "]")
         action.execute()
 
@@ -1331,8 +1419,10 @@ class PickFileAction(ClickFileAction):
     def __init__(self):
         super(PickFileAction, self).__init__(322, 180)   
 
-terminal = Mouse("[720, 72]/200")
-
+terminal = Mouse("[1760, 68]/200, left")
+# terminal = Mouse("[1121, 63]/200") # 1280x720
+click_message_area = Mouse("[400, 1050]/50, left")
+# click_message_area = Mouse("[264, 623]/50") # 1280x720
 source_tree_action_map = {
     # http://greena13.github.io/blog/2015/02/01/sourcetree-keyboard-shortcuts/
 
@@ -1342,20 +1432,23 @@ source_tree_action_map = {
     "search|three":     Key("c-3"), 
 
     # Committing
-    "stage <n1>":       StageDiscardHunkAction("stage"),
-    "discard <n1>":     StageDiscardHunkAction("discard"),
-    "file [<n2>]":      ClickFileAction(), 
-    "pick [<n2>]":      PickFileAction(), # Click file in staging area
-    "stage file":       Key("space/30") + Mouse("[320, 590]/15, [323, 587]"), 
-    "message":          Mouse("[1849, 966]"), # Click message field/cancel btn
+    # "stage <n1>":       StageDiscardHunkAction("stage"),
+    # "discard <n1>":     StageDiscardHunkAction("discard"),
+    "file [<n>]":       ClickFileAction(),
+    "pick [<n>]":       PickFileAction(), # Click file in staging area
+    "to stage":         Key("space/200"),
+    "to message":       click_message_area, # Click message field
     "commit":           Key("c-enter"),
-    "read":             Mouse("[1240, 185]"), # Click file area (enable scrolling)
+    "read":             Mouse("[1240, 185], left"), # Click file area (enable scrolling)
     
     # Terminal        
-    "soft reset":       terminal + Text("git reset --soft HEAD") + tilde,
-    "new base":         terminal + Text("git rebase -i HEAD"),
+    "soft reset":               terminal + Text("git reset --soft HEAD") + tilde,
+    "new base":                 terminal + Text("git rebase -i HEAD"),
+    "master check out":         terminal + Text("git checkout master") + Key("enter/100, a-f4"),
+
 
     # Other
+    "repository":       release + Key("ctrl:down, n"),
     "pull":             release + Key("ctrl:down, shift:down, l"),
     "push":             release + Key("ctrl:down, shift:down, p"),
     "stash":            release + Key("ctrl:down, shift:down, s"),
@@ -1364,16 +1457,13 @@ source_tree_action_map = {
 
 file_extension = Text(".cs")
 source_tree_terminal_map = {
-    "patch <text1>":         CapsAction(terminal + Text("git add --patch *"), file_extension),
+    #"patch <text>":         CapsAction(terminal + Text("git add --patch *"), file_extension),
+    "message <text>":       TextAction(click_message_area),  # Click message field
+    "check out <text>":     terminal + CapsAction(Text("git checkout "), Key("tab")),
+    "branch <text>":        terminal + ScoreAction(Text("git checkout -b ")),
 }
 
 source_tree_element_map = {
-    "n1": IntegerRef(None, 0, 10), 
-    "n2": (IntegerRef(None, 0, 10), 1), 
-    "text1": RuleWrap(None, Alternative([
-        Dictation(),
-        DictListRef(None, char_dict_list),
-    ])),
 }
 
 
@@ -1391,8 +1481,10 @@ class ClickMailAction(ActionBase):
    
     def __init__(self):
         super(ClickMailAction, self).__init__()
-        self.start_y = 252
         self.start_x = 450
+        self.start_y = 252
+        # self.start_x = 402  # 1280x720
+        # self.start_y = 161  # 1280x720
 
     def _execute(self, data=None):
         mouse_y =  str(self.start_y + (data["n"] - 1) * 64)
@@ -1405,12 +1497,14 @@ outlook_action_map  = {
     
     # Boxes
     "box":          Mouse("[135, 235]"), # Inbox
+    # "box":          Mouse("[74, 182]"), # Inbox  # 1280x720
     "unread":       Mouse("[137, 270]"), # Unread Mail
     "sent":         Mouse("[139, 300]"), # Sent Items
+    # "sent": Mouse("[100, 239]"),  # Sent Items  # 1280x720
 
     "<n>":          ClickMailAction(),
 
-    "no":           Key("c-u"), # Mark unread
+    "no mark":      Key("c-u"), # Mark unread
     "now":          Key("cs-m/30, tab/5:3"),
     "item":         Key("c-n"), # new E-mail/appointment
     "search":       Key("c-e"),
@@ -1419,18 +1513,16 @@ outlook_action_map  = {
     "mail":         Key("c-1"),
     "time":         Key("c-2"),
     "people":       Key("c-3"),
+    "read":         Mouse("[1849, 900]"),
+
 }
 
 outlook_terminal_map = {
-    "search <text1>":       TextAction(Key("c-e/15")),
+    "search <text>":       TextAction(Key("c-e/15")),
+
 }
 
 outlook_element_map = {
-    "n": IntegerRef(None, 0, 10), 
-    "text1": RuleWrap(None, Alternative([
-        Dictation(),
-        DictListRef(None, char_dict_list),
-    ])),
 }
 
 
@@ -1441,6 +1533,19 @@ outlook = Environment(name="Outlook",
                                  terminal_action_map=outlook_terminal_map,
                                  element_map=outlook_element_map)
 
+outlook_new_message_action_map = {
+
+    # Name
+    "name":             Text(info.NAME),
+    "first name":       Text(info.FIRST_NAME),
+    "last name":        Text(info.LAST_NAME),
+}
+
+outlook_new_message = Environment(name="Outlook_new_message",
+                                 parent=global_environment,
+                                 context=AppContext(title="- Message (HTML)"),
+                                 action_map=outlook_new_message_action_map)
+
 ### Sublime Text
 
 sublime_action_map  = {
@@ -1450,32 +1555,24 @@ sublime_action_map  = {
     "next [<n>]":       Key("c-pgdown/5:%(n)d"), 
     "pro [<n>]":        Key("c-pgup/15:%(n)d"),
     "vertical":         Key("as-2"), 
-    "one column":       Key("as-1"), 
+    "one column":       Key("as-1"),
 
     # Misc
     "hash":             hashk + Key("space"),
     "now":              Key("c-n"), 
     "replace":          Key("c-h"),
     "cross [<n>]":      RepeatAction(Key("home/5, s-3/5, space/5, down/5, home/5")),
-
-   # Dragonfly
-   "text":              Text("Text(\""),   
-   "key":               Text("Key(\""),   
 }
 
 sublime_terminal_map = {
-    "find <text1>":    FindAction(),
+    "find <text>":    FindAction(),
 
     # Dragonfly
-    "text <text1>":    CamelAction(Text("Text(\"")),   
-    "key <text1>":     CamelAction(Text("Key(\"")), 
+    "text <text>":    CamelAction(Text("Text(\"")),   
+    "key <text>":     CamelAction(Text("Key(\"")), 
 }
 
 sublime_element_map = {
-   "text1": RuleWrap(None, Alternative([
-        Dictation(),
-        DictListRef(None, char_dict_list),
-    ])),
 }
 
 sublime_action_map = utils.combine_maps(sublime_action_map, 
@@ -1493,6 +1590,38 @@ sublime = Environment(name="Sublime_Text",
 
 ### Slack
 
+class PasteEmoji(ActionBase):
+
+    def __init__(self, press_enter=False):
+        super(PasteEmoji, self).__init__()
+        self.enter = Key("enter") if press_enter else Key("")
+
+    def _execute(self, data=None):
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        try:
+            win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, unicode(" " + data["emoji"]))
+        finally:
+            win32clipboard.CloseClipboard()
+            action = Key("c-v/5") + self.enter
+            action.execute()
+
+emoji_map = {
+    "smile": ":) ",
+    "sad": ":( ",
+    "unsure": ":/ ",
+    "big smile": ":D ",
+    "laugh": ":p ",
+    "party": ":tada: ",
+    "plus": ":+1: ",
+    "awesome": ":fast_parrot: :facepunch:  :fast_parrot: ",
+    "very awesome": ":fast_parrot: :facepunch: :facepunch: :fast_parrot: ",
+    "funny": ":stuck_out_tongue_closed_eyes: :stuck_out_tongue_closed_eyes: :stuck_out_tongue_closed_eyes:",
+    "bang": ":boom: :boom: :boom:",
+}
+
+emoji_map_dict_list  = DictList("emoji_map_dict_list", emoji_map)
+
 slack_action_map  = {
     # https://get.slack.help/hc/en-us/articles/201374536-Slack-keyboard-shortcuts
 
@@ -1506,18 +1635,23 @@ slack_action_map  = {
     "forward [<n>]":      Key("a-right/5:%(n)d"), # Next item in history
 
     # Channels
-    "firm|one":         Key("c-1"),
-    "intern|two":       Key("c-2"),
+    "firm|to one":          Key("c-1"),
+    "intern|to two":        Key("c-2"),
+    "to three":      Key("c-3"),
 
 }
 
 slack_terminal_map = {
-    "now <letters>":        Key("cs-t/15") + Text("%(letters)s"), 
+    "now <letters>":     Key("cs-t/15") + Text("%(letters)s"),
+    "face <emoji>":      PasteEmoji(),
+    "send <emoji>":      PasteEmoji(press_enter=True),
 }
 
 slack_element_map = {
     "letters": utils.JoinedRepetition(
-        "", DictListRef(None, letters_map_dict_list), min=0, max=4), 
+        "", DictListRef(None, letters_map_dict_list), min=0, max=4),
+    "emoji": utils.JoinedRepetition(
+        "", DictListRef(None, emoji_map_dict_list), min=0, max=8),
 }
 
 
@@ -1531,32 +1665,28 @@ slack = Environment(name="Slack",
 
 ### Windows Explorer
 
-explorer_action_map  = {
+explorer_action_map = {
    
     # Navigation
     "back [<n>]":         Key("a-left/5:%(n)d"), # Previous folder in history
     "forward [<n>]":      Key("a-right/5:%(n)d"), # Next folder in history
 
-    "pro [<n>]":         Key("a-up/5:%(n)d"), # Up one level
-    "recent":            Key("f4"),
+    "pro [<n>]":        Key("a-up/5:%(n)d"), # Up one level
+    "recent":           Key("f4"),
+    "terminal":         Key("apps/15, down/5:9, enter"),
 
     # Directories
-    "drive":        ToDir(info.C_DRIVE), 
-    "box":          ToDir(info.DOWNLOAD), 
-    "documents":    ToDir(info.DOCUMENTS), 
-
+    "drive":        ToDir(info.C_DRIVE),
+    "box":          ToDir(info.DOWNLOAD),
+    "documents":    ToDir(info.DOCUMENTS),
+    "pictures":     ToDir(info.PICTURES),
 }
 
 explorer_terminal_map = {
-    "search <text1>":         CapsAction(Key("c-e")),
-
+    "search <text>":         CapsAction(Key("c-e")),
 }
 
 explorer_element_map = {
-    "text1": RuleWrap(None, Alternative([
-        Dictation(),
-        DictListRef(None, char_dict_list),
-    ])),
 }
 
 
@@ -1566,6 +1696,44 @@ explorer = Environment(name="Windows_Explorer",
                      action_map=explorer_action_map,
                      terminal_action_map=explorer_terminal_map,
                      element_map=explorer_element_map)
+
+cmd_action_map = {
+    "exit":     Text("exit") + Key("enter"),
+}
+
+cmd = Environment(name="CommandWindow",
+                     parent=global_environment,
+                     context=AppContext(executable="cmd"),
+                     action_map=cmd_action_map)
+
+
+virtual_box_action_map = {
+    "paste":            Key("cs-v"),
+    "copy":             Key("cs-c"),
+    "administrator":    Text("sudo"),
+    "install":          Text("sudo apt-get install "),
+    "back":             Text("cd ..") + Key("enter"),
+    "show":             Text("ls") + Key("enter"),
+    "compose":          Text("docker-compose up -d") + Key("enter"),
+    "stop compose":     Text("docker-compose down") + Key("enter"),
+    "containers":       Text("docker ps -a") + Key("enter"),
+    "delete":           Text("docker rm "),
+    "pull":             Text("git pull"),
+    "get branch":       Text("git fetch") + Key("enter") + Text("git checkout "),
+    "status":           Text("git status") + Key("enter"),
+    "make":             Text("make") + Key("enter"),
+    "make start":       Text("make start") + Key("enter"),
+}
+
+virtual_box = Environment(name="VirtualBox",
+                     parent=global_environment,
+                     context=AppContext(title="- Oracle VM VirtualBox"),
+                     action_map=virtual_box_action_map)
+
+
+
+
+
 
 #-------------------------------------------------------------------------------
 # Populate and load the grammar.

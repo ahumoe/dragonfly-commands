@@ -13,4 +13,5 @@ GITHUB = "https://github.com"
 # Directories
 DOWNLOAD = "C:\\Users\\your user\\Downloads"
 DOCUMENTS = "C:\\Users\\your user\\Documents"
+PICTURES = "C:\\Users\\your user\\Pictures"
 C_DRIVE  = "C:\\"
