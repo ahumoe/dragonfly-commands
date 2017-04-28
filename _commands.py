@@ -18,12 +18,6 @@ try:
 except ImportError:
     pass
 
-import Queue
-import platform
-import socket
-import threading
-import time
-import webbrowser
 import win32clipboard
 
 from dragonfly import (
@@ -35,7 +29,6 @@ from dragonfly import (
     DictList,
     DictListRef,
     Dictation,
-    Empty,
     Function,
     Grammar,
     IntegerRef,
@@ -57,6 +50,18 @@ from dragonfly import (
 import dragonfly.log
 import _dragonfly_utils as utils
 import _personal_info as info
+
+from _characters_and_numbers import (
+    char_dict_list,
+    letters_map_dict_list,
+)
+
+from _environment import Environment
+
+from _window_switching import (
+    outlook_n,
+    slack_n,
+)
 
 from _problematic_chars import (
     release,
@@ -141,24 +146,6 @@ symbol_map = {
     "space": " ", 
 }
 
-numbers_map = {
-    "zero": "0",
-    "one": "1",
-    "two": "2",
-    "three": "3",
-    "four": "4",
-    "five": "5",
-    "six": "6",
-    "seven": "7",
-    "eight": "8",
-    "nine": "9",
-    "point": ".",
-    "minus": "-",
-    "slash": "/",
-    "coal": ":",
-    "come": ", ",
-}
-
 short_letters_map = {
     "A": "a",
     "B": "b",
@@ -188,34 +175,7 @@ short_letters_map = {
     "Z": "z",
 }
 
-letters_map = {
-    "ace": "a",
-    "bed": "b",
-    "chair": "c",
-    "dell": "d",
-    "egg": "e",
-    "fame": "f",
-    "golf": "g",
-    "heart": "h",
-    "ice": "i",
-    "joy": "j",
-    "king": "k",
-    "love": "l",
-    "mars": "m",
-    "neck": "n",
-    "ork": "o",
-    "pork": "p",
-    "quest": "q",
-    "rug": "r",
-    "sea": "s",
-    "tan": "t",
-    "ush": "u",
-    "van": "v",
-    "wish": "w",
-    "trex": "x",
-    "yang": "y",
-    "zulu": "z",
-}
+
 
 prefixes = [
     "num",
@@ -226,63 +186,12 @@ suffixes = [
     "bytes",
 ]
 
-char_map = dict((k, v.strip())
-                for (k, v) in utils.combine_maps(letters_map).iteritems())
+
 
 ### Final commands that can be used once after everything else. These change the
 ### application context so it is important that nothing else gets run after
 ### them.
 
-outlook_n = "6"
-slack_n = "7"
-
-# Ordered list of pinned taskbar items. Sublists refer to windows within a specific application.
-windows = [
-    "browse",
-    "storm",
-    "code",
-    "charm",
-    "source",
-    "email", # 6
-    "slack", # 7
-    "explore",
-    "text",
-]
-
-windows_prefix = "go"
-windows_mapping = {}
-for i, window in enumerate(windows):
-    if isinstance(window, str):
-        window = [window]
-    for j, words in enumerate(window):
-        windows_mapping[windows_prefix + " " + words] = Key("win:down, %d:%d/10, win:up" % (i + 1, j + 1))
-
-windows_prefix_second = "go to"
-windows_mapping_second = {}
-for i, window in enumerate(windows):
-    if isinstance(window, str):
-        window = [window]
-    for j, words in enumerate(window):
-        windows_mapping_second[windows_prefix_second + " " + words] = Key(
-            "win:down, %d:%d/10, %d:%d/10, win:up" % (i + 1, j + 1, i + 1, j + 1))
-
-
-# Work around security restrictions in Windows 8.
-if platform.release() == "8":
-    swap_action = Mimic("press", "alt", "tab")
-else:
-    swap_action = Key("alt:down, tab:%(n)d/25, alt:up")
-
-final_action_map = utils.combine_maps(windows_mapping, windows_mapping_second, {
-    "swap [<n>]":   swap_action,
-})
-
-final_element_map = {
-    "n": (IntegerRef(None, 1, 5), 1)
-}
-final_rule = utils.create_rule("FinalRule",
-                               final_action_map,
-                               final_element_map)
 
 class Slack:
     def __init__(self, slack_n, outlook_n):
@@ -435,48 +344,17 @@ key_action_map = {
     "second name":      Text(info.LAST_NAME),
 }
 
-# Actions for speaking out sequences of characters.
-character_action_map = {
-    "sign <numerals>": Text("%(numerals)s"),
-    "print <letters>": Text("%(letters)s"),
-    "shout <letters>": Function(lambda letters: Text(letters.upper()).execute()),
-}
+
 
 # Actions that can be used anywhere except after a command with arbitrary
 # dictation.
 command_action_map = utils.combine_maps(utils.text_map_to_action_map(symbol_map), key_action_map)
 #-------------------------------------------------------------------------------
-# Simple elements that may be referred to within a rule.
 
-numbers_dict_list  = DictList("numbers_dict_list", numbers_map)
-letters_dict_list = DictList("letters_dict_list", letters_map)
-char_dict_list = DictList("char_dict_list", char_map)
 # Lists which will be populated later via RPC.
 context_word_list = List("context_word_list", [])
 prefix_list = List("prefix_list", prefixes)
 suffix_list = List("suffix_list", suffixes)
-
-# Either arbitrary dictation or letters.
-mixed_dictation = RuleWrap(None, utils.JoinedSequence(" ", [
-    Optional(ListRef(None, prefix_list)),
-    Alternative([
-        Dictation(),
-        DictListRef(None, letters_dict_list),
-    ]),
-    Optional(ListRef(None, suffix_list)),
-]))
-
-# A sequence of either short letters or long letters.
-letters_element = RuleWrap(None, utils.JoinedRepetition(
-    "", DictListRef(None, letters_dict_list), min=1, max=10))
-
-# A sequence of numbers.
-numbers_element = RuleWrap(None, utils.JoinedRepetition(
-    "", DictListRef(None, numbers_dict_list), min=0, max=10))
-
-# A sequence of characters.
-chars_element = RuleWrap(None, utils.JoinedRepetition(
-    "", DictListRef(None, char_dict_list), min=0, max=10))
 
 # Simple element map corresponding to keystroke action maps from earlier.
 keystroke_element_map = {
@@ -494,147 +372,11 @@ keystroke_element_map = {
     ])),
 }
 
-#-------------------------------------------------------------------------------
-# Rules which we will refer to within other rules.
 
-# Rule for printing a sequence of characters.
-character_rule = utils.create_rule(
-    "CharacterRule",
-    character_action_map,
-    {
-        "numerals": numbers_element,
-        "letters": letters_element,
-        "chars": chars_element,
-    }
-)
 
 #-------------------------------------------------------------------------------
 # Elements that are composed of rules. Note that the value of these elements are
 # actions which will have to be triggered manually.
-
-# Element matching simple commands.
-# For efficiency, this should not contain any repeating elements.
-single_action = RuleRef(rule=utils.create_rule("CommandKeystrokeRule",
-                                               command_action_map,
-                                               keystroke_element_map))
-
-#---------------------------------------------------------------------------
-# Here we define the top-level rule which the user can say.
-
-# This is the rule that actually handles recognitions.
-#  When a recognition occurs, its _process_recognition()
-#  method will be called.  It receives information about the
-#  recognition in the "extras" argument: the sequence of
-#  actions and the number of times to repeat them.
-class RepeatRule(CompoundRule):
-
-    def __init__(self, name, command, terminal_command, context):
-        # Here we define this rule's spoken-form and special elements. Note that
-        # nested_repetitions is the only one that contains Repetitions, and it
-        # is not itself repeated. This is for performance purposes.
-        spec = ("[<sequence>] "
-                "[<nested_repetitions>] "
-                "[<terminal_command>] "
-                "[<final_command>]")
-        extras = [
-            Repetition(command, min=1, max = 5, name="sequence"),
-            Alternative([RuleRef(rule=character_rule)],
-                        name="nested_repetitions"),
-            utils.ElementWrapper("terminal_command", terminal_command),
-            RuleRef(rule=final_rule, name="final_command"),
-        ]
-        defaults = {
-            "sequence": [],
-            "nested_repetitions": None,
-            "terminal_command": None,
-            "final_command": None,
-        }
-
-        CompoundRule.__init__(self, name=name, spec=spec,
-                              extras=extras, defaults=defaults, exported=True, context=context)
-
-    # This method gets called when this rule is recognized.
-    # Arguments:
-    #  - node -- root node of the recognition parse tree.
-    #  - extras -- dict of the "extras" special elements:
-    #     . extras["sequence"] gives the sequence of actions.
-    def _process_recognition(self, node, extras):
-        sequence = extras["sequence"]   # A sequence of actions.
-        nested_repetitions = extras["nested_repetitions"]
-        terminal_command = extras["terminal_command"]
-        final_command = extras["final_command"]
-        for action in sequence:
-            action.execute()
-            Pause("5").execute()
-        if nested_repetitions:
-            nested_repetitions.execute()
-        if terminal_command:
-            terminal_command.execute()
-        release.execute()
-        if final_command:
-            final_command.execute()
-
-
-#-------------------------------------------------------------------------------
-# Define top-level rules for different contexts. Note that Dragon only allows
-# top-level rules to be context-specific, but we want control over sub-rules. To
-# work around this limitation, we compile a mutually exclusive top-level rule
-# for each context.
-
-class Environment(object):
-    """Environment where voice commands can be spoken. Combines grammar and context
-    and adds hierarchy. When installed, will produce a top-level rule for each
-    environment.
-    """
-
-    def __init__(self,
-                 name,
-                 parent=None,
-                 context=None,
-                 action_map=None,
-                 terminal_action_map=None,
-                 element_map=None):
-        self.name = name
-        self.children = []
-        if parent:
-            parent.add_child(self)
-            self.context = utils.combine_contexts(parent.context, context)
-            self.action_map = utils.combine_maps(parent.action_map, action_map)
-            self.terminal_action_map = utils.combine_maps(
-                parent.terminal_action_map, terminal_action_map)
-            self.element_map = utils.combine_maps(parent.element_map, element_map)
-        else:
-            self.context = context
-            self.action_map = action_map if action_map else {}
-            self.terminal_action_map = terminal_action_map if terminal_action_map else {}
-            self.element_map = element_map if element_map else {}
-
-    def add_child(self, child):
-        self.children.append(child)
-
-    def install(self, grammar):
-        exclusive_context = self.context
-        for child in self.children:
-            child.install(grammar)
-            exclusive_context = utils.combine_contexts(exclusive_context, ~child.context)
-        if self.action_map:
-            element = RuleRef(rule=utils.create_rule(self.name + "KeystrokeRule",
-                                                     self.action_map,
-                                                     self.element_map))
-        else:
-            element = Empty()
-        if self.terminal_action_map:
-            terminal_element = RuleRef(
-                rule=utils.create_rule(self.name + "TerminalRule",
-                                       self.terminal_action_map,
-                                       self.element_map))
-        else:
-            terminal_element = Empty()
-        grammar.add_rule(RepeatRule(self.name + "RepeatRule",
-                                    element,
-                                    terminal_element,
-                                    exclusive_context))
-
 
 ### Global
 
@@ -938,7 +680,6 @@ class RepeatAction(ActionBase):
             repeat_action += self.action
         repeat_action.execute()
 
-letters_map_dict_list  = DictList("letters_map_dict_list", letters_map)
 
 def open_website(url, delay=0):
     return Key("c-t/15") + Text(url) + Key("enter/" + str(delay))

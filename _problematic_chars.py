@@ -1,3 +1,6 @@
+# (c) Copyright 2016 by Andreas Hagen Ulltveit-Moe
+# Licensed under the LGPL, see <http://www.gnu.org/licenses/>
+
 from dragonfly import Key
 
 # Had problems with dragonfly not recognizing some characters
