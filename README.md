@@ -10,7 +10,7 @@ This repository contains speech commands and macros for the following programs a
 - Windows Explorer
 - Outlook 
 
-It requires the speech recognition software Dragon NaturallySpeaking. Due to some problems reloading multiple files, all the commands are defined in the file `_commands.py`. The command modules are work in progress, so changes will occur. 
+It requires the speech recognition software Dragon NaturallySpeaking (DNS). Due to a file loading issue, most of the commands are defined in the file `_commands.py`. If new commands are placed in this file, DNS will pick them up immediately after mic is turned off/on. The command modules are work in progress so changes will occur. 
 
 Based on code written by wolfmanstout [dragonfly-commands](https://github.com/wolfmanstout/dragonfly-commands).
 
