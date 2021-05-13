@@ -1,7 +1,7 @@
 # dragonfly-commands
 
 This repository contains speech commands and macros for the following programs and languages:
-- Visual Studio: C# [video](https://youtu.be/YnFQ0gQDnWM)
+- Visual Studio: C#
 - WebStorm: HTML, CSS, JavaScript, React
 - Sublime Text
 - SourceTree
@@ -9,6 +9,8 @@ This repository contains speech commands and macros for the following programs a
 - Chrome
 - Windows Explorer
 - Outlook 
+
+For demonstration videos, visit my channel on YouTube: [VoiceProgrammer](https://www.youtube.com/channel/UCaGFoHSOdtybMJJN7EATsBg)  
 
 It requires the speech recognition software Dragon NaturallySpeaking (DNS). Due to a file loading issue, most of the commands are defined in the file `_commands.py`. If new commands are placed in this file, DNS will pick them up immediately after mic is turned off/on. The command modules are work in progress so changes will occur. 
 
